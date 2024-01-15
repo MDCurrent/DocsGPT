@@ -1,4 +1,6 @@
+from http import HTTPStatus
 import os
+from application.models.api_request.upload_file_info import UploadFileInfo
 from flask import Blueprint, request, jsonify
 import requests
 from pymongo import MongoClient
@@ -6,9 +8,8 @@ from bson.objectid import ObjectId
 from werkzeug.utils import secure_filename
 
 from application.api.user.tasks import ingest
-
 from application.core.settings import settings
-from application.vectorstore.vector_creator import VectorCreator
+from application.models.vectorstore.vector_creator import VectorCreator
 
 mongo = MongoClient(settings.MONGO_URI)
 db = mongo["docsgpt"]
@@ -46,16 +47,17 @@ def get_conversations():
     return jsonify(list_conversations)
 
 
-@user.route("/api/get_single_conversation", methods=["get"])
-def get_single_conversation():
+@user.route("/api/get_conversation", methods=["get"])
+def get_conversation():
     # provides data for a conversation
     conversation_id = request.args.get("id")
     conversation = conversations_collection.find_one({"_id": ObjectId(conversation_id)})
     return jsonify(conversation['queries'])
 
-@user.route("/api/update_conversation_name", methods=["POST"])
+@user.route("/api/update_conversation", methods=["POST"])
 def update_conversation_name():
     # update data for a conversation
+    # TODO: Part of a conversation is is lifycycle hooks
     data = request.get_json()
     id = data["id"]
     name = data["name"]
@@ -126,37 +128,26 @@ def delete_old():
 @user.route("/api/upload", methods=["POST"])
 def upload_file():
     """Upload a file to get vectorized and indexed."""
-    if "user" not in request.form:
-        return {"status": "no user"}
-    user = secure_filename(request.form["user"])
-    if "name" not in request.form:
-        return {"status": "no name"}
-    job_name = secure_filename(request.form["name"])
-    # check if the post request has the file part
-    if "file" not in request.files:
-        print("No file part")
-        return {"status": "no file"}
-    file = request.files["file"]
-    if file.filename == "":
-        return {"status": "no file name"}
+    try:
+        file_info = UploadFileInfo(**request.form)
+        file = request.files[file_info.file.alias]
 
-    if file:
-        filename = secure_filename(file.filename)
-        # save dir
-        save_dir = os.path.join(current_dir, settings.UPLOAD_FOLDER, user, job_name)
-        # create dir if not exists
-        if not os.path.exists(save_dir):
-            os.makedirs(save_dir)
+        if file.filename == "":
+            return {}, HTTPStatus.BAD_REQUEST
 
-        file.save(os.path.join(save_dir, filename))
+        file.save(file_info.final_save_path)
+
         task = ingest.delay(settings.UPLOAD_FOLDER, [".rst", ".md", ".pdf", ".txt", ".docx", 
         ".csv", ".epub", ".html", ".mdx"],
-         job_name, filename, user)
-        # task id
+         file_info.name.filename, file_info.file.filename, file_info.user.filename)
+
         task_id = task.id
-        return {"status": "ok", "task_id": task_id}
-    else:
-        return {"status": "error"}
+        return {"status": "ok", "task_id": task_id}, HTTPStatus.CREATED
+
+    except KeyError as exc:
+        return {exc}, HTTPStatus.BAD_REQUEST
+    except Exception as exc:
+        return {exc}, HTTPStatus.INTERNAL_SERVER_ERROR
 
 @user.route("/api/task_status", methods=["GET"])
 def task_status():
@@ -275,22 +266,19 @@ def get_prompts():
 @user.route("/api/get_single_prompt", methods=["GET"])
 def get_single_prompt():
     prompt_id = request.args.get("id")
-    if prompt_id == 'default':
-        with open(os.path.join(current_dir, "prompts", "chat_combine_default.txt"), "r") as f:
-            chat_combine_template = f.read()
-        return jsonify({"content": chat_combine_template})
-    elif prompt_id == 'creative':
-        with open(os.path.join(current_dir, "prompts", "chat_combine_creative.txt"), "r") as f:
-            chat_reduce_creative = f.read()
-        return jsonify({"content": chat_reduce_creative})
-    elif prompt_id == 'strict':
-        with open(os.path.join(current_dir, "prompts", "chat_combine_strict.txt"), "r") as f:
-            chat_reduce_strict = f.read()   
-        return jsonify({"content": chat_reduce_strict})
+    file_name = prompt_id + '.txt' if prompt_id else None
+    file_path = os.path.abspath(os.path.join(current_dir, "prompts", file_name))
 
+    if not os.path.exists(file_path):
+        try: 
+            prompt = prompts_collection.find_one({"_id": ObjectId(prompt_id)})
+            return jsonify({"content": prompt["content"]})
+        except Exception as e:
+            return {e}, HTTPStatus.NOT_FOUND
 
-    prompt = prompts_collection.find_one({"_id": ObjectId(prompt_id)})
-    return jsonify({"content": prompt["content"]})
+    with open(file_path, "r") as f:
+        content = f.read()
+        return jsonify({"content" : content}), HTTPStatus.OK
 
 @user.route("/api/delete_prompt", methods=["POST"])
 def delete_prompt():

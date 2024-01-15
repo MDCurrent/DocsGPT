@@ -1,18 +1,39 @@
 FROM python:3.11-slim-bullseye as builder
-
 # Tiktoken requires Rust toolchain, so build it in a separate stage
-RUN apt-get update && apt-get install -y gcc curl
+RUN apt-get update && apt-get install -y gcc curl g++
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y && apt-get install --reinstall libc6-dev -y
 ENV PATH="/root/.cargo/bin:${PATH}"
-RUN pip install --upgrade pip && pip install tiktoken==0.5.2
+
+ENV CC=gcc CXX=g++
+RUN echo "Detecting platform..." 
+RUN export PLATFORM=$(uname -m | sed 's/\(x86_64\)/amd64/; s/(armv7l|aarch64)\//arm\//') 
+RUN echo "Platform detected: ${PLATFORM}" 
+# && mkdir -p /usr/share/cmake/platform/${PLATFORM} \\
+# && tee "/usr/share/cmake/platform/${PLATFORM}/Toolchain.cmake" << EOF > /dev/null \\
+# set(CMAKE_SYSTEM_NAME Generic) \\
+# set(CMAKE_SYSTEM_VERSION 1) \\
+# set(CMAKE_HOST_SYSTEM_NAME "${CMAKE_HOST_SYSTEM_NAME}") \\
+# set(CMAKE_HOST_SYSTEM_VERSION "${CMAKE_HOST_SYSTEM_VERSION}") \\
+# set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}") \\
+# set(CMAKE_SYSROOT "") \\
+# set(CMAKE_FIND_ROOT_PATH "") \\
+# set(_IMPORT_PREFIX "") \\
+# set(__SKB_TMPDIR "\${CMAKE_BINARY_DIR}/skbuild") \\
+# EOF \\
+# && chmod +rx /usr/share/cmake/platform/*
+
+RUN pip install --upgrade pip
 COPY requirements.txt .
 RUN pip install -r requirements.txt
 RUN apt-get install -y wget unzip
 RUN wget https://d3dg1063dc54p9.cloudfront.net/models/embeddings/mpnet-base-v2.zip
-RUN unzip mpnet-base-v2.zip -d model
-RUN rm mpnet-base-v2.zip
+RUN mv mpnet-base-v2.zip all-mpnet-base-v2.zip
+RUN unzip all-mpnet-base-v2.zip -d model
+RUN rm all-mpnet-base-v2.zip
+RUN pip install --no-cache-dir -vvv cmake==3.22.1 llama-cpp-python
 
 FROM python:3.11-slim-bullseye
+
 
 # Copy pre-built packages and binaries from builder stage
 COPY --from=builder /usr/local/ /usr/local/

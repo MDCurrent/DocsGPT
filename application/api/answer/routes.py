@@ -1,5 +1,9 @@
 import asyncio
 import os
+from xml.dom import ValidationErr
+from application.core.utility import dict_to_validated_model
+from application.models.api_request.answer_api_request import AnswerApiRequest
+from application.models.prompt.prompt_resolver import PromptTemplateResolver
 from flask import Blueprint, request, Response
 import json
 import datetime
@@ -9,14 +13,18 @@ import traceback
 from pymongo import MongoClient
 from bson.objectid import ObjectId
 from transformers import GPT2TokenizerFast
+from langchain_openai import OpenAIEmbeddings
+from langchain.utils.math import cosine_similarity
 
+from langchain_core.prompts import PromptTemplate
 
 
 from application.core.settings import settings
-from application.vectorstore.vector_creator import VectorCreator
-from application.llm.llm_creator import LLMCreator
+from application.models.vectorstore.vector_creator import VectorCreator
+from application.models.llm.llm_creator import LLMCreator
 from application.error import bad_request
-
+from flask import jsonify
+from pydantic import ValidationError
 
 
 logger = logging.getLogger(__name__)
@@ -52,7 +60,6 @@ with open(os.path.join(current_dir, "prompts", "chat_combine_strict.txt"), "r") 
 api_key_set = settings.API_KEY is not None
 embeddings_key_set = settings.EMBEDDINGS_KEY is not None
 
-
 async def async_generate(chain, question, chat_history):
     result = await chain.arun({"question": question, "chat_history": chat_history})
     return result
@@ -74,47 +81,27 @@ def run_async_chain(chain, question, chat_history):
     result["answer"] = answer
     return result
 
-
-def get_vectorstore(data):
-    if "active_docs" in data:
-        if data["active_docs"].split("/")[0] == "default":
-                vectorstore = ""
-        elif data["active_docs"].split("/")[0] == "local":
-            vectorstore = "indexes/" + data["active_docs"]
-        else:
-            vectorstore = "vectors/" + data["active_docs"]
-        if data["active_docs"] == "default":
-            vectorstore = ""
-    else:
-        vectorstore = ""
-    vectorstore = os.path.join("application", vectorstore)
-    return vectorstore
-
-
 def is_azure_configured():
     return settings.OPENAI_API_BASE and settings.OPENAI_API_VERSION and settings.AZURE_DEPLOYMENT_NAME
 
 
 def complete_stream(question, docsearch, chat_history, api_key, prompt_id, conversation_id):
     llm = LLMCreator.create_llm(settings.LLM_NAME, api_key=api_key)
-
-    if prompt_id == 'default':
-        prompt = chat_combine_template
-    elif prompt_id == 'creative':
-        prompt = chat_combine_creative
-    elif prompt_id == 'strict':
-        prompt = chat_combine_strict
-    else:
-        prompt = prompts_collection.find_one({"_id": ObjectId(prompt_id)})["content"]
-
+    # TODO: No way we cant search on a collection of docs. should look deeper
     docs = docsearch.search(question, k=2)
     if settings.LLM_NAME == "llama.cpp":
         docs = [docs[0]]
     # join all page_content together with a newline
     docs_together = "\n".join([doc.page_content for doc in docs])
-    p_chat_combine = prompt.replace("{summaries}", docs_together)
+
+    # We need to be doing some real chain lang shit here
+    # - any of the cookbooks but that will require skipping below
+    prompt = PromptTemplateResolver.resolve()
+    p_chat_combine = prompt.format(summaries=docs_together)
     messages_combine = [{"role": "system", "content": p_chat_combine}]
     source_log_docs = []
+
+    # Conversation model/ interface 
     for doc in docs:
         if doc.metadata:
             data = json.dumps({"type": "source", "doc": doc.page_content[:10], "metadata": doc.metadata})
@@ -182,88 +169,35 @@ def complete_stream(question, docsearch, chat_history, api_key, prompt_id, conve
 
 @answer.route("/stream", methods=["POST"])
 def stream():
-    data = request.get_json()
-    # get parameter from url question
-    question = data["question"]
-    history = data["history"]
-    # history to json object from string
-    history = json.loads(history)
-    conversation_id = data["conversation_id"]
-    if 'prompt_id' in data:
-        prompt_id = data["prompt_id"]
-    else:
-        prompt_id = 'default'
-
-    # check if active_docs is set
-
-    if not api_key_set:
-        api_key = data["api_key"]
-    else:
-        api_key = settings.API_KEY
-    if not embeddings_key_set:
-        embeddings_key = data["embeddings_key"]
-    else:
-        embeddings_key = settings.EMBEDDINGS_KEY
-    if "active_docs" in data:
-        vectorstore = get_vectorstore({"active_docs": data["active_docs"]})
-    else:
-        vectorstore = ""
-    docsearch = VectorCreator.create_vectorstore(settings.VECTOR_STORE, vectorstore, embeddings_key)
+    try:
+        data = dict_to_validated_model(AnswerApiRequest, request.get_json())
+    except ValidationError as e:
+        return jsonify(error=str(e)), 400
+    docsearch = VectorCreator.create_vectorstore(settings.VECTOR_STORE, data.vectorstore, data.embeddings_key)
 
     return Response(
-        complete_stream(question, docsearch,
-                        chat_history=history, api_key=api_key,
-                        prompt_id=prompt_id,
-                        conversation_id=conversation_id), mimetype="text/event-stream"
+        complete_stream(data.question, docsearch,
+                        chat_history=data.history, api_key=data.api_key,
+                        prompt_id=data.prompt_id,
+                        conversation_id=data.conversation_id), mimetype="text/event-stream"
     )
 
 
 @answer.route("/api/answer", methods=["POST"])
 def api_answer():
-    data = request.get_json()
-    question = data["question"]
-    history = data["history"]
-    if "conversation_id" not in data:
-        conversation_id = None
-    else:
-        conversation_id = data["conversation_id"]
-    print("-" * 5)
-    if not api_key_set:
-        api_key = data["api_key"]
-    else:
-        api_key = settings.API_KEY
-    if not embeddings_key_set:
-        embeddings_key = data["embeddings_key"]
-    else:
-        embeddings_key = settings.EMBEDDINGS_KEY
-    if 'prompt_id' in data:
-        prompt_id = data["prompt_id"]
-    else:
-        prompt_id = 'default'
-
-    if prompt_id == 'default':
-        prompt = chat_combine_template
-    elif prompt_id == 'creative':
-        prompt = chat_combine_creative
-    elif prompt_id == 'strict':
-        prompt = chat_combine_strict
-    else:
-        prompt = prompts_collection.find_one({"_id": ObjectId(prompt_id)})["content"]
-
+    try:
+        data = dict_to_validated_model(AnswerApiRequest, request.get_json())
+    except ValidationError as e:
+        return jsonify(error=str(e)), 400
     # use try and except  to check for exception
     try:
-        # check if the vectorstore is set
-        vectorstore = get_vectorstore(data)
         # loading the index and the store and the prompt template
         # Note if you have used other embeddings than OpenAI, you need to change the embeddings
-        docsearch = VectorCreator.create_vectorstore(settings.VECTOR_STORE, vectorstore, embeddings_key)
+        docsearch = VectorCreator.create_vectorstore(settings.VECTOR_STORE, data.vectorstore, data.embeddings_key)
+        llm = LLMCreator.create_llm(settings.LLM_NAME, api_key=data.api_key)
 
-
-        llm = LLMCreator.create_llm(settings.LLM_NAME, api_key=api_key)
-
-
-
-        docs = docsearch.search(question, k=2)
+        docs = docsearch.search(data.question, k=2)
+        prompt = PromptTemplateResolver.resolve()
         # join all page_content together with a newline
         docs_together = "\n".join([doc.page_content for doc in docs])
         p_chat_combine = prompt.replace("{summaries}", docs_together)
@@ -276,19 +210,19 @@ def api_answer():
                 source_log_docs.append({"title": doc.page_content, "text": doc.page_content})
         # join all page_content together with a newline
 
-
-        if len(history) > 1:
+        # TODO: This should be just pulling history based on conversation_id.
+        if len(data.history) > 1:
             tokens_current_history = 0
             # count tokens in history
-            history.reverse()
-            for i in history:
+            data.history.reverse()
+            for i in data.history:
                 if "prompt" in i and "response" in i:
                     tokens_batch = count_tokens(i["prompt"]) + count_tokens(i["response"])
                     if tokens_current_history + tokens_batch < settings.TOKENS_MAX_HISTORY:
                         tokens_current_history += tokens_batch
                         messages_combine.append({"role": "user", "content": i["prompt"]})
                         messages_combine.append({"role": "system", "content": i["response"]})
-        messages_combine.append({"role": "user", "content": question})
+        messages_combine.append({"role": "user", "content": data.question})
 
 
         completion = llm.gen(model=gpt_model, engine=settings.AZURE_DEPLOYMENT_NAME,
@@ -302,7 +236,7 @@ def api_answer():
         if conversation_id is not None:
             conversations_collection.update_one(
                 {"_id": ObjectId(conversation_id)},
-                {"$push": {"queries": {"prompt": question,
+                {"$push": {"queries": {"prompt": data.question,
                                        "response": result["answer"], "sources": result['sources']}}},
             )
 
@@ -312,7 +246,7 @@ def api_answer():
             messages_summary = [
                 {"role": "assistant", "content": "Summarise following conversation in no more than 3 words, "
                     "respond ONLY with the summary, use the same language as the system \n\n"
-                    "User: " + question + "\n\n" + "AI: " + result["answer"]},
+                    "User: " + data.question + "\n\n" + "AI: " + result["answer"]},
                 {"role": "user", "content": "Summarise following conversation in no more than 3 words, "
                     "respond ONLY with the summary, use the same language as the system"}
             ]
@@ -327,7 +261,7 @@ def api_answer():
                 {"user": "local",
                 "date": datetime.datetime.utcnow(),
                 "name": completion,
-                "queries": [{"prompt": question, "response": result["answer"], "sources": source_log_docs}]}
+                "queries": [{"prompt": data.question, "response": result["answer"], "sources": source_log_docs}]}
             ).inserted_id
 
         result["conversation_id"] = str(conversation_id)

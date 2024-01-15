@@ -64,9 +64,6 @@ def ingest(yes: bool = typer.Option(False, "-y", "--yes", prompt=False,
         # We do this due to the context limits of the LLMs.
         raw_docs = group_split(documents=raw_docs, min_tokens=min_tokens, max_tokens=max_tokens,
                                token_check=token_check)
-        # Old method
-        # text_splitter = RecursiveCharacterTextSplitter()
-        # docs = text_splitter.split_documents(raw_docs)
 
         # Sample feature
         if sample:

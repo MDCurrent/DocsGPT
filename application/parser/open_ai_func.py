@@ -1,7 +1,7 @@
 import os
 
 import tiktoken
-from application.vectorstore.vector_creator import VectorCreator
+from application.models.vectorstore.vector_creator import VectorCreator
 from application.core.settings import settings
 from retry import retry
 
