@@ -8,19 +8,6 @@ ENV CC=gcc CXX=g++
 RUN echo "Detecting platform..." 
 RUN export PLATFORM=$(uname -m | sed 's/\(x86_64\)/amd64/; s/(armv7l|aarch64)\//arm\//') 
 RUN echo "Platform detected: ${PLATFORM}" 
-# && mkdir -p /usr/share/cmake/platform/${PLATFORM} \\
-# && tee "/usr/share/cmake/platform/${PLATFORM}/Toolchain.cmake" << EOF > /dev/null \\
-# set(CMAKE_SYSTEM_NAME Generic) \\
-# set(CMAKE_SYSTEM_VERSION 1) \\
-# set(CMAKE_HOST_SYSTEM_NAME "${CMAKE_HOST_SYSTEM_NAME}") \\
-# set(CMAKE_HOST_SYSTEM_VERSION "${CMAKE_HOST_SYSTEM_VERSION}") \\
-# set(CMAKE_SYSTEM_PROCESSOR "${CMAKE_SYSTEM_PROCESSOR}") \\
-# set(CMAKE_SYSROOT "") \\
-# set(CMAKE_FIND_ROOT_PATH "") \\
-# set(_IMPORT_PREFIX "") \\
-# set(__SKB_TMPDIR "\${CMAKE_BINARY_DIR}/skbuild") \\
-# EOF \\
-# && chmod +rx /usr/share/cmake/platform/*
 
 RUN pip install --upgrade pip
 COPY requirements.txt .

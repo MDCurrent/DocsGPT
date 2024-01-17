@@ -101,28 +101,7 @@ def complete_stream(question, docsearch, chat_history, api_key, prompt_id, conve
     messages_combine = [{"role": "system", "content": p_chat_combine}]
     source_log_docs = []
 
-    # Conversation model/ interface 
-    for doc in docs:
-        if doc.metadata:
-            data = json.dumps({"type": "source", "doc": doc.page_content[:10], "metadata": doc.metadata})
-            source_log_docs.append({"title": doc.metadata['title'].split('/')[-1], "text": doc.page_content})
-        else:
-            data = json.dumps({"type": "source", "doc": doc.page_content[:10]})
-            source_log_docs.append({"title": doc.page_content, "text": doc.page_content})
-        yield f"data:{data}\n\n"
-
-    if len(chat_history) > 1:
-        tokens_current_history = 0
-        # count tokens in history
-        chat_history.reverse()
-        for i in chat_history:
-            if "prompt" in i and "response" in i:
-                tokens_batch = count_tokens(i["prompt"]) + count_tokens(i["response"])
-                if tokens_current_history + tokens_batch < settings.TOKENS_MAX_HISTORY:
-                    tokens_current_history += tokens_batch
-                    messages_combine.append({"role": "user", "content": i["prompt"]})
-                    messages_combine.append({"role": "system", "content": i["response"]})
-    messages_combine.append({"role": "user", "content": question})
+    # TODO: Conversation model/ interface - probably not this low level either
 
     response_full = ""
     completion = llm.gen_stream(model=gpt_model, engine=settings.AZURE_DEPLOYMENT_NAME,
@@ -210,21 +189,6 @@ def api_answer():
                 source_log_docs.append({"title": doc.page_content, "text": doc.page_content})
         # join all page_content together with a newline
 
-        # TODO: This should be just pulling history based on conversation_id.
-        if len(data.history) > 1:
-            tokens_current_history = 0
-            # count tokens in history
-            data.history.reverse()
-            for i in data.history:
-                if "prompt" in i and "response" in i:
-                    tokens_batch = count_tokens(i["prompt"]) + count_tokens(i["response"])
-                    if tokens_current_history + tokens_batch < settings.TOKENS_MAX_HISTORY:
-                        tokens_current_history += tokens_batch
-                        messages_combine.append({"role": "user", "content": i["prompt"]})
-                        messages_combine.append({"role": "system", "content": i["response"]})
-        messages_combine.append({"role": "user", "content": data.question})
-
-
         completion = llm.gen(model=gpt_model, engine=settings.AZURE_DEPLOYMENT_NAME,
                                     messages=messages_combine)
 
@@ -234,6 +198,7 @@ def api_answer():
 
         # generate conversationId
         if conversation_id is not None:
+            #TODO: Grab conversation and populate with history
             conversations_collection.update_one(
                 {"_id": ObjectId(conversation_id)},
                 {"$push": {"queries": {"prompt": data.question,

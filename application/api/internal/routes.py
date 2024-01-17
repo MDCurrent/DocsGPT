@@ -32,11 +32,7 @@ def download_file():
 def upload_index_files():
     """Upload two files(index.faiss, index.pkl) to the user's folder."""
     try:
-        # Rest of the code...
-
         form_data = UploadApiRequest(user=user, name=name, language=lang, file_faiss=io.BytesIO(file_faiss.read()), file_pkl=io.BytesIO(file_pkl.read()))
-
-        # Rest of the code...
     except KeyError as exc:
         return {'message': f'Missing field "{exc}".'}, HTTPStatus.BAD_REQUEST
     except Exception as exc:
