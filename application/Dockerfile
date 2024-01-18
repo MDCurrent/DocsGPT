@@ -21,7 +21,6 @@ RUN pip install --no-cache-dir -vvv cmake==3.22.1 llama-cpp-python
 
 FROM python:3.11-slim-bullseye
 
-
 # Copy pre-built packages and binaries from builder stage
 COPY --from=builder /usr/local/ /usr/local/
 

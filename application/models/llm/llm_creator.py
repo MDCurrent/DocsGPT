@@ -1,20 +1,16 @@
-from application.llm.openai import OpenAILLM, AzureOpenAILLM
-from application.llm.sagemaker import SagemakerAPILLM
-from application.llm.huggingface import HuggingFaceLLM
-from application.llm.llama_cpp import LlamaCpp
-from application.llm.anthropic import AnthropicLLM
-from application.llm.docsgpt_provider import DocsGPTAPILLM
-
+from application.models.llm.sagemaker import SagemakerAPILLM
+from application.models.llm.docsgpt_provider import DocsGPTAPILLM
+from langchain.llms import HuggingFacePipeline,OpenAI,AzureOpenAI, AzureOpenAI, LlamaCpp, ChatAnthropic, DocsGPTAPILLM
 
 
 class LLMCreator:
     llms = {
-        'openai': OpenAILLM,
-        'azure_openai': AzureOpenAILLM,
+        'openai': OpenAI,
+        'azure_openai': AzureOpenAI,
         'sagemaker': SagemakerAPILLM,
-        'huggingface': HuggingFaceLLM,
+        'huggingface': HuggingFacePipeline,
         'llama.cpp': LlamaCpp,
-        'anthropic': AnthropicLLM,
+        'anthropic': ChatAnthropic,
         'docsgpt': DocsGPTAPILLM
     }
 

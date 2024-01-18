@@ -10,7 +10,7 @@ class LlamaCpp(BaseLLM):
         except ImportError:
             raise ImportError("Please install llama_cpp using pip install llama-cpp-python")
 
-        llama = Llama(model_path=llm_name, n_ctx=5000, n_gpu_layers=28)
+        llama = Llama(model_path=llm_name, n_ctx=2048)
 
     def gen(self, model, engine, messages, stream=False, **kwargs):
         context = messages[0]['content']

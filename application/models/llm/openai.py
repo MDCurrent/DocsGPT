@@ -1,11 +1,11 @@
-from application.llm.base import BaseLLM
+from application.models.llm.base import BaseLLM
 from application.core.settings import settings
+from langchain_openai import OpenAI,AzureOpenAI, AzureOpenAI
 
 class OpenAILLM(BaseLLM):
 
     def __init__(self, api_key):
-        global openai
-        from openai import OpenAI
+        global langchain_openai
         
         self.client = OpenAI(
                 api_key=api_key, 
@@ -14,9 +14,9 @@ class OpenAILLM(BaseLLM):
 
     def _get_openai(self):
         # Import openai when needed
-        import openai
+        import langchain_openai
         
-        return openai
+        return langchain_openai
 
     def gen(self, model, engine, messages, stream=False, **kwargs):
         response = self.client.chat.completions.create(model=model,
@@ -40,13 +40,26 @@ class OpenAILLM(BaseLLM):
 
 
 class AzureOpenAILLM(OpenAILLM):
+    """
+    https://python.langchain.com/docs/integrations/llms/azure_openai#api-configuration
+    """
 
     def __init__(self, openai_api_key, openai_api_base, openai_api_version, deployment_name):
         super().__init__(openai_api_key)
+        import os
+        from azure.identity import DefaultAzureCredential
+
+        # Get the Azure Credential
+        credential = DefaultAzureCredential()
+
+        # Set the API type to `azure_ad`
+        os.environ["OPENAI_API_TYPE"] = "azure_ad"
+        # Set the API_KEY to the token from the Azure credential
+        os.environ["OPENAI_API_KEY"] = credential.get_token("https://cognitiveservices.azure.com/.default").token
         self.api_base = settings.OPENAI_API_BASE,
         self.api_version = settings.OPENAI_API_VERSION,
         self.deployment_name = settings.AZURE_DEPLOYMENT_NAME,
-        from openai import AzureOpenAI
+
         self.client = AzureOpenAI(
             api_key=openai_api_key,  
             api_version=settings.OPENAI_API_VERSION,

@@ -1,11 +1,10 @@
-from application.llm.base import BaseLLM
+from application.core.settings import settings
+from application.models.llm.base import BaseLLM
+from langchain.llms import HuggingFacePipeline
 
 class HuggingFaceLLM(BaseLLM):
 
-    def __init__(self, api_key, llm_name='Arc53/DocsGPT-7B',q=False):
-        global hf
-        
-        from langchain.llms import HuggingFacePipeline
+    def __init__(self, api_key, llm_name=settings.HUGGING_FACE_REPO_NAME,q=False):
         if q:
             import torch
             from transformers import AutoModelForCausalLM, AutoTokenizer, pipeline, BitsAndBytesConfig
@@ -27,14 +26,14 @@ class HuggingFaceLLM(BaseLLM):
             tokenizer=tokenizer, max_new_tokens=2000,
             device_map="auto", eos_token_id=tokenizer.eos_token_id
         )
-        hf = HuggingFacePipeline(pipeline=pipe)
+        self.model = HuggingFacePipeline(pipeline=pipe)
 
     def gen(self, model, engine, messages, stream=False, **kwargs):
         context = messages[0]['content']
         user_question = messages[-1]['content']
         prompt = f"### Instruction \n {user_question} \n ### Context \n {context} \n ### Answer \n"
 
-        result = hf(prompt)
+        result = self.model(prompt)
 
         return result.content
 

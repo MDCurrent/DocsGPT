@@ -21,10 +21,13 @@ class PromptTemplateResolver:
 
 
     def resolve(self, input):
+        """
+        Uses OpenAI embeddings to find the most similar template to the input query
+        """
         embeddings_model = OpenAIEmbeddings()
         query_embedding = embeddings_model.embed_query(input["query"])
         similarity = cosine_similarity([query_embedding], query_embedding)[0]
         most_similar = self.templates[similarity.argmax()]
         print(f"most simmilar = {most_similar}")
-        return PromptTemplate.from_template(most_similar)
+        return most_similar
 
