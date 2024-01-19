@@ -1,18 +1,13 @@
 import asyncio
-import os
-from xml.dom import ValidationErr
 from application.core.utility import dict_to_validated_model
 from application.models.api_request.answer_api_request import AnswerApiRequest
 from application.models.chain.chain_creator import ChainCreator
-from application.models.prompt.prompt_resolver import PromptTemplateResolver
 from flask import Blueprint, request, Response
 from flask import jsonify
 from pydantic import ValidationError
 import json
-import datetime
 import logging
 import traceback
-from operator import itemgetter
 
 from pymongo import MongoClient
 from bson.objectid import ObjectId

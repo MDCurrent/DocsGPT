@@ -1,6 +1,6 @@
 from application.models.llm.sagemaker import SagemakerAPILLM
 from application.models.llm.docsgpt_provider import DocsGPTAPILLM
-from langchain.llms import HuggingFacePipeline,OpenAI,AzureOpenAI, AzureOpenAI, LlamaCpp, ChatAnthropic, DocsGPTAPILLM
+from langchain.llms import HuggingFacePipeline,OpenAI,AzureOpenAI, AzureOpenAI, LlamaCpp, Anthropic
 
 
 class LLMCreator:
@@ -10,7 +10,7 @@ class LLMCreator:
         'sagemaker': SagemakerAPILLM,
         'huggingface': HuggingFacePipeline,
         'llama.cpp': LlamaCpp,
-        'anthropic': ChatAnthropic,
+        'anthropic': Anthropic,
         'docsgpt': DocsGPTAPILLM
     }
 

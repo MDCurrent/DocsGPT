@@ -1,12 +1,9 @@
 from application.core.settings import settings
 from application.models.vectorstore.base import get_vectorstore
-from pydantic import BaseModel, Extra
+from pydantic import BaseModel
 from typing import Optional
 
 class AnswerApiRequest(BaseModel):
-    config = {"arbitrary_settings": False}
-    extra = Extra.forbid
-
     question: str
     history: list[dict]
     conversation_id: str

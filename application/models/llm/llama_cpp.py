@@ -1,16 +1,11 @@
-from application.llm.base import BaseLLM
+from application.models.llm.base import BaseLLM
 from application.core.settings import settings
 
 class LlamaCpp(BaseLLM):
 
     def __init__(self, api_key, llm_name=settings.MODEL_PATH, **kwargs):
         global llama
-        try:
-            from llama_cpp import Llama
-        except ImportError:
-            raise ImportError("Please install llama_cpp using pip install llama-cpp-python")
-
-        llama = Llama(model_path=llm_name, n_ctx=2048)
+        llama = LlamaCpp(model_path=llm_name, n_ctx=2048)
 
     def gen(self, model, engine, messages, stream=False, **kwargs):
         context = messages[0]['content']

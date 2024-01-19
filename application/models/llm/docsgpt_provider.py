@@ -1,4 +1,4 @@
-from application.llm.base import BaseLLM
+from application.models.llm.base import BaseLLM
 import json
 import requests
 

@@ -1,4 +1,4 @@
-from application.llm.base import BaseLLM
+from application.models.llm.base import BaseLLM
 from application.core.settings import settings
 
 class AnthropicLLM(BaseLLM):

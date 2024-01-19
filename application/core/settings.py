@@ -25,7 +25,6 @@ class Settings(BaseSettings):
     OPENAI_API_VERSION: Optional[str] = None  # azure openai api version
     AZURE_DEPLOYMENT_NAME: Optional[str] = None  # azure deployment name for answering
     AZURE_EMBEDDINGS_DEPLOYMENT_NAME: Optional[str] = None  # azure deployment name for embeddings
-    HUGGING_FACE_REPO_NAME: str = "Arc53/DocsGPT-7B"  # hugging face repo name
 
     # elasticsearch
     ELASTIC_CLOUD_ID: Optional[str] = None # cloud id for elasticsearch

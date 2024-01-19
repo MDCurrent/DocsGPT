@@ -1,7 +1,8 @@
-from pydantic import BaseModel, FilePath
+from pydantic import BaseModel, Field, IO
 from typing import List
 from pathlib import Path
-import tempfile
+from application.core.settings import settings
+import os
 
 class UploadApiRequest(BaseModel):
     user: str
@@ -23,7 +24,7 @@ class UploadApiRequest(BaseModel):
         self.file_faiss.save(self.location / "index.faiss")
         self.file_pkl.save(self.location / "index.pkl")
 
-    def insert_into_vectors_collection(self):
+    def insert_into_vectors_collection(self, vectors_collection):
         import datetime
 
         collection = vectors_collection
@@ -36,8 +37,7 @@ class UploadApiRequest(BaseModel):
                 "location": str(self.location),
                 "date": datetime.datetime.now().strftime("%d/%m/%Y %H:%M:%S"),
                 "model": settings.EMBEDDINGS_NAME,
-                "type": "local",
-                "_id": str(ObjectId()),
+                "type": "local"
             }
         ).inserted_id
 
